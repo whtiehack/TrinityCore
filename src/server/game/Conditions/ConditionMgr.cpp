@@ -20,10 +20,11 @@
 #include "AreaTrigger.h"
 #include "AreaTriggerDataStore.h"
 #include "BattlePetMgr.h"
+#include "Battleground.h"
 #include "Containers.h"
 #include "ConversationDataStore.h"
-#include "DatabaseEnv.h"
 #include "DB2Stores.h"
+#include "DatabaseEnv.h"
 #include "GameEventMgr.h"
 #include "GameObject.h"
 #include "GameTime.h"
@@ -31,27 +32,28 @@
 #include "InstanceScenario.h"
 #include "InstanceScript.h"
 #include "Item.h"
-#include "LanguageMgr.h"
 #include "LFGMgr.h"
+#include "LanguageMgr.h"
 #include "Log.h"
 #include "LootMgr.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
-#include "PhasingHandler.h"
 #include "Pet.h"
+#include "PhasingHandler.h"
 #include "Player.h"
 #include "RaceMask.h"
 #include "Realm.h"
 #include "ReputationMgr.h"
 #include "ScriptMgr.h"
 #include "Spell.h"
-#include "SpellAuras.h"
 #include "SpellAuraEffects.h"
+#include "SpellAuras.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldSession.h"
 #include "WorldStateMgr.h"
+#include "WowTime.h"
 #include <random>
 #include <sstream>
 
@@ -159,7 +161,14 @@ ConditionSourceInfo::ConditionSourceInfo(WorldObject const* target0, WorldObject
     mConditionTargets[0] = target0;
     mConditionTargets[1] = target1;
     mConditionTargets[2] = target2;
-    mConditionMap = target0 ? target0->GetMap() : nullptr;
+    if (target0)
+        mConditionMap = target0->GetMap();
+    else if (target1)
+        mConditionMap = target1->GetMap();
+    else if (target2)
+        mConditionMap = target2->GetMap();
+    else
+        mConditionMap =  nullptr;
     mLastFailedCondition = nullptr;
 }
 
@@ -189,18 +198,15 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo) const
             break;
         case CONDITION_INSTANCE_INFO:
         {
-            if (map->IsDungeon())
+            if (InstanceMap const* instanceMap = map->ToInstanceMap())
             {
-                if (InstanceScript const* instance = ((InstanceMap*)map)->GetInstanceScript())
+                if (InstanceScript const* instance = instanceMap->GetInstanceScript())
                 {
                     switch (ConditionValue3)
                     {
                         case INSTANCE_INFO_DATA:
                             condMeets = instance->GetData(ConditionValue1) == ConditionValue2;
                             break;
-                        //case INSTANCE_INFO_GUID_DATA:
-                        //    condMeets = instance->GetGuidData(ConditionValue1) == ObjectGuid(uint64(ConditionValue2));
-                        //    break;
                         case INSTANCE_INFO_BOSS_STATE:
                             condMeets = instance->GetBossState(ConditionValue1) == EncounterState(ConditionValue2);
                             break;
@@ -211,6 +217,22 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo) const
                             condMeets = false;
                             break;
                     }
+                }
+            }
+            else if (BattlegroundMap const* bgMap = map->ToBattlegroundMap())
+            {
+                ZoneScript const* zoneScript = bgMap->GetBG();
+                switch (ConditionValue3)
+                {
+                    case INSTANCE_INFO_DATA:
+                        condMeets = zoneScript->GetData(ConditionValue1) == ConditionValue2;
+                        break;
+                    case INSTANCE_INFO_DATA64:
+                        condMeets = zoneScript->GetData64(ConditionValue1) == ConditionValue2;
+                        break;
+                    default:
+                        condMeets = false;
+                        break;
                 }
             }
             break;
@@ -362,7 +384,7 @@ bool Condition::Meets(ConditionSourceInfo& sourceInfo) const
             break;
         }
         case CONDITION_AREAID:
-            condMeets = object->GetAreaId() == ConditionValue1;
+            condMeets = DB2Manager::IsInArea(object->GetAreaId(), ConditionValue1);
             break;
         case CONDITION_SPELL:
         {
@@ -2266,7 +2288,7 @@ bool ConditionMgr::isConditionTypeValid(Condition* cond) const
                 return false;
             }
 
-            if (areaEntry->ParentAreaID != 0)
+            if (areaEntry->ParentAreaID != 0 && areaEntry->GetFlags().HasFlag(AreaFlags::IsSubzone))
             {
                 TC_LOG_ERROR("sql.sql", "{} requires to be in area ({}) which is a subzone but zone expected, skipped.", cond->ToString(true), cond->ConditionValue1);
                 return false;
@@ -2698,6 +2720,12 @@ bool ConditionMgr::isConditionTypeValid(Condition* cond) const
             }
             break;
         case CONDITION_INSTANCE_INFO:
+            if (cond->ConditionValue3 == INSTANCE_INFO_GUID_DATA)
+            {
+                TC_LOG_ERROR("sql.sql", "{} has unsupported ConditionValue3 {} (INSTANCE_INFO_GUID_DATA), skipped.", cond->ToString(true), cond->ConditionValue3);
+                return false;
+            }
+            break;
         case CONDITION_AREAID:
         case CONDITION_ALIVE:
         case CONDITION_IN_WATER:
@@ -3244,15 +3272,18 @@ bool ConditionMgr::IsPlayerMeetingCondition(Player const* player, PlayerConditio
 
     if (condition->Time[0])
     {
-        ByteBuffer unpacker;
-        unpacker << condition->Time[0];
-        time_t from = unpacker.ReadPackedTime();
-        unpacker.rpos(0);
-        unpacker.wpos(0);
-        unpacker << condition->Time[1];
-        time_t to = unpacker.ReadPackedTime();
+        WowTime time0;
+        time0.SetPackedTime(condition->Time[0]);
 
-        if (GameTime::GetGameTime() < from || GameTime::GetGameTime() > to)
+        if (condition->Time[1])
+        {
+            WowTime time1;
+            time1.SetPackedTime(condition->Time[1]);
+
+            if (!GameTime::GetWowTime()->IsInRange(time0, time1))
+                return false;
+        }
+        else if (*GameTime::GetWowTime() != time0)
             return false;
     }
 
@@ -3308,7 +3339,7 @@ bool ConditionMgr::IsPlayerMeetingCondition(Player const* player, PlayerConditio
         results.fill(true);
         for (std::size_t i = 0; i < condition->AreaID.size(); ++i)
             if (condition->AreaID[i])
-                results[i] = player->GetAreaId() == condition->AreaID[i] || player->GetZoneId() == condition->AreaID[i];
+                results[i] = DB2Manager::IsInArea(player->GetAreaId(), condition->AreaID[i]);
 
         if (!PlayerConditionLogic(condition->AreaLogic, results))
             return false;

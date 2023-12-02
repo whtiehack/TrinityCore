@@ -31,7 +31,6 @@
 #include "DB2Stores.h"
 #include "GameTime.h"
 #include "GridNotifiersImpl.h"
-#include "InstanceScript.h"
 #include "Item.h"
 #include "Log.h"
 #include "MotionMaster.h"
@@ -1414,33 +1413,6 @@ class spell_gen_ds_flush_knockback : public SpellScript
     {
         OnEffectHitTarget += SpellEffectFn(spell_gen_ds_flush_knockback::HandleScript, EFFECT_0, SPELL_EFFECT_DUMMY);
     }
-};
-
-class spell_gen_dungeon_credit : public SpellScript
-{
-    bool Load() override
-    {
-        return GetCaster()->GetTypeId() == TYPEID_UNIT;
-    }
-
-    void CreditEncounter()
-    {
-        // This hook is executed for every target, make sure we only credit instance once
-        if (_handled)
-            return;
-
-        _handled = true;
-        Unit* caster = GetCaster();
-        if (InstanceScript* instance = caster->GetInstanceScript())
-            instance->UpdateEncounterStateForSpellCast(GetSpellInfo()->Id, caster);
-    }
-
-    void Register() override
-    {
-        AfterHit += SpellHitFn(spell_gen_dungeon_credit::CreditEncounter);
-    }
-
-    bool _handled = false;
 };
 
 // 50051 - Ethereal Pet Aura
@@ -5358,6 +5330,34 @@ class spell_gen_major_healing_cooldown_modifier_aura : public AuraScript
     }
 };
 
+// 50230 - Random Aggro (Taunt)
+class spell_gen_random_aggro_taunt : public SpellScript
+{
+    bool Validate(SpellInfo const* spellInfo) override
+    {
+        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_0 } }) && ValidateSpellInfo({ static_cast<uint32>(spellInfo->GetEffect(EFFECT_0).BasePoints) });
+    }
+
+    void SelectRandomTarget(std::list<WorldObject*>& targets)
+    {
+        if (targets.empty())
+            return;
+
+        Trinity::Containers::RandomResize(targets, 1);
+    }
+
+    void HandleTauntEffect(SpellEffIndex effIndex)
+    {
+        GetHitUnit()->CastSpell(GetCaster(), static_cast<uint32>(GetSpellInfo()->GetEffect(effIndex).BasePoints), CastSpellExtraArgs(TRIGGERED_FULL_MASK));
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_gen_random_aggro_taunt::SelectRandomTarget, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+        OnEffectHitTarget += SpellEffectFn(spell_gen_random_aggro_taunt::HandleTauntEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
+};
+
 void AddSC_generic_spell_scripts()
 {
     RegisterSpellScript(spell_gen_absorb0_hitlimit1);
@@ -5396,7 +5396,6 @@ void AddSC_generic_spell_scripts()
     RegisterSpellScript(spell_gen_despawn_target);
     RegisterSpellScript(spell_gen_divine_storm_cd_reset);
     RegisterSpellScript(spell_gen_ds_flush_knockback);
-    RegisterSpellScript(spell_gen_dungeon_credit);
     RegisterSpellScript(spell_ethereal_pet_aura);
     RegisterSpellScript(spell_ethereal_pet_onsummon);
     RegisterSpellScript(spell_ethereal_pet_aura_remove);
@@ -5534,4 +5533,5 @@ void AddSC_generic_spell_scripts()
     RegisterSpellScript(spell_gen_waiting_to_resurrect);
     RegisterSpellScript(spell_gen_major_healing_cooldown_modifier);
     RegisterSpellScript(spell_gen_major_healing_cooldown_modifier_aura);
+    RegisterSpellScript(spell_gen_random_aggro_taunt);
 }
