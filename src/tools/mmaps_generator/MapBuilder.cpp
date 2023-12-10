@@ -1120,7 +1120,7 @@ namespace MMAP
         config.minRegionArea = rcSqr(60);
         config.mergeRegionArea = rcSqr(50);
         config.maxSimplificationError = 1.8f;           // eliminates most jagged edges (tiny polygons)
-        config.detailSampleDist = config.cs * 16;
+        config.detailSampleDist = config.cs * 8;
         config.detailSampleMaxError = config.ch * 1;
 
         switch (mapID)
