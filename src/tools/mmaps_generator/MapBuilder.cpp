@@ -1119,7 +1119,7 @@ namespace MMAP
         config.walkableClimb = m_bigBaseUnit ? 2 : 5;
         config.minRegionArea = rcSqr(60);
         config.mergeRegionArea = rcSqr(50);
-        config.maxSimplificationError = 2f;           // eliminates most jagged edges (tiny polygons)
+        config.maxSimplificationError = 2.0f;           // eliminates most jagged edges (tiny polygons)
         config.detailSampleDist = config.cs * 8;
         config.detailSampleMaxError = config.ch * 1;
 
