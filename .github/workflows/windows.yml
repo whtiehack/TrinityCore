@@ -52,7 +52,7 @@ jobs:
       - name: Configure
         env:
           BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
-        run: cmake -DUSE_COREPCH=1 -DUSE_SCRIPTPCH=1 -DTOOLS=1 -DELUNA=1 -DSCRIPTS=static -DSERVERS=1 -B ${{env.BUILD_DIR}} -S ${{env.REPO_DIR}}
+        run: cmake  -DTOOLS=1 -B ${{env.BUILD_DIR}} -S ${{env.REPO_DIR}}
 
       - name: Build
         env:

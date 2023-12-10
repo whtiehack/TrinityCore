@@ -1109,18 +1109,18 @@ namespace MMAP
         // 55 should be the minimum, maybe 70 is ok (keep in mind blink uses mmaps), 85 is too much for players
         config.walkableSlopeAngle = m_maxWalkableAngle ? *m_maxWalkableAngle : 55;
         config.walkableSlopeAngleNotSteep = m_maxWalkableAngleNotSteep ? *m_maxWalkableAngleNotSteep : 55;
-        config.tileSize = tileConfig.VERTEX_PER_TILE;
+        config.tileSize = 40;
         config.walkableRadius = m_bigBaseUnit ? 1 : 2;
         config.borderSize = config.walkableRadius + 3;
-        config.maxEdgeLen = tileConfig.VERTEX_PER_TILE + 1;        // anything bigger than tileSize
+        config.maxEdgeLen = 40 + 1;        // anything bigger than tileSize
         config.walkableHeight = m_bigBaseUnit ? 3 : 6;
         // a value >= 3|6 allows npcs to walk over some fences
         // a value >= 4|8 allows npcs to walk over all fences
         config.walkableClimb = m_bigBaseUnit ? 2 : 4;
         config.minRegionArea = rcSqr(8);
         config.mergeRegionArea = rcSqr(20);
-        config.maxSimplificationError = 2.0f;           // eliminates most jagged edges (tiny polygons)
-        config.detailSampleDist = config.cs * 8;
+        config.maxSimplificationError = 1.8f;           // eliminates most jagged edges (tiny polygons)
+        config.detailSampleDist = config.cs * 6;
         config.detailSampleMaxError = config.ch * 1;
 
         switch (mapID)
