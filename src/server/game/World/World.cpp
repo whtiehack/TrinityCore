@@ -1261,17 +1261,26 @@ bool World::SetInitialWorldSettings()
     sObjectMgr->SetHighestGuids();
 
     ///- Check the existence of the map files for all races' startup areas.
-    if (!TerrainMgr::ExistMapAndVMap(0, -6240.32f, 331.033f)
-        || !TerrainMgr::ExistMapAndVMap(0, -8949.95f, -132.493f)
-        || !TerrainMgr::ExistMapAndVMap(1, -618.518f, -4251.67f)
-        || !TerrainMgr::ExistMapAndVMap(0, 1676.35f, 1677.45f)
-        || !TerrainMgr::ExistMapAndVMap(1, 10311.3f, 832.463f)
-        || !TerrainMgr::ExistMapAndVMap(1, -2917.58f, -257.98f)
-        || (m_int_configs[CONFIG_EXPANSION] && (
-            !TerrainMgr::ExistMapAndVMap(530, 10349.6f, -6357.29f) ||
-            !TerrainMgr::ExistMapAndVMap(530, -3961.64f, -13931.2f))))
+    // [local-test fork] Startup-area self-check only checks .map files; vmaps can be absent (LOS/height auto-degrades at runtime,
+    // for the local secret-value mechanism test we don't need collision; the full vmap extraction takes several hours).
+    auto existMapOnly = [](uint32 mapId, float x, float y)
     {
-        TC_LOG_FATAL("server.loading", "Unable to load map and vmap data for starting zones - server shutting down!");
+        GridCoord p = Trinity::ComputeGridCoord(x, y);
+        int32 gx = (MAX_NUMBER_OF_GRIDS - 1) - p.x_coord;
+        int32 gy = (MAX_NUMBER_OF_GRIDS - 1) - p.y_coord;
+        return TerrainMgr::ExistMap(mapId, gx, gy);
+    };
+    if (!existMapOnly(0, -6240.32f, 331.033f)
+        || !existMapOnly(0, -8949.95f, -132.493f)
+        || !existMapOnly(1, -618.518f, -4251.67f)
+        || !existMapOnly(0, 1676.35f, 1677.45f)
+        || !existMapOnly(1, 10311.3f, 832.463f)
+        || !existMapOnly(1, -2917.58f, -257.98f)
+        || (m_int_configs[CONFIG_EXPANSION] && (
+            !existMapOnly(530, 10349.6f, -6357.29f) ||
+            !existMapOnly(530, -3961.64f, -13931.2f))))
+    {
+        TC_LOG_FATAL("server.loading", "Unable to load map data for starting zones - server shutting down!");
         return false;
     }
 
