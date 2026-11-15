@@ -1289,8 +1289,11 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading GameObject models...");
     if (!LoadGameObjectModelList(m_dataPath))
     {
-        TC_LOG_FATAL("server.loading", "Unable to load gameobject models (part of vmaps), objects using WMO models will crash the client - server shutting down!");
-        return false;
+        // [local-test fork] gameobject model tree can be absent (vmaps skipped):
+        // WMO gameobjects get no server-side collision, which the local
+        // secret-values test does not use. Creatures (training dummies) are
+        // unaffected.
+        TC_LOG_WARN("server.loading", "GameObjectModels.dtree absent - WMO gameobjects have no server-side collision (local-test fork).");
     }
 
     TC_LOG_INFO("server.loading", "Initialize data stores...");
